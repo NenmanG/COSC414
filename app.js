@@ -56,44 +56,90 @@ gl.bindBuffer(gl.ARRAY_BUFFER, colourBuffer);
 gl.vertexAttribPointer(colourLocation, 3, gl.FLOAT, false, 0, 0);
 
 
+class Circle {
 
+    constructor(x, y, radius, colour){
+        this.x = x;
+        this.y = y;
+        this.radius = radius;
+        this.colour = colour;
+        this.numVertices = 99; // num of fans
+    }
+
+    circleVertex(){
+        let circleVertex = [
+            this.x, this.y, 0.0 //circle center
+        ];
+
+        for(let i = 0; i <= this.numVertices; i++){
+            circleVertex.push(Math.cos(i * 2 * Math.PI/this.numVertices) * this.radius + this.x);  //x
+            circleVertex.push(Math.sin(i * 2 * Math.PI/this.numVertices) * this.radius + this.y);  //y
+            circleVertex.push(0.0);                                                 //z
+            
+        }
+
+        return circleVertex;
+    }
+
+    vertexColour(){
+        let vertexColour = [
+            this.colour[0],this.colour[1],this.colour[2] // each vertex colours
+        ]; 
+
+        for(let i = 0; i <= this.numVertices; i++){
+            vertexColour.push(this.colour[0]);
+            vertexColour.push(this.colour[1]);
+            vertexColour.push(this.colour[2]);   
+            
+        }
+
+        return vertexColour;
+    }
+
+    make(){
+        // vertexData = [...]
+        let cv = this.circleVertex();
+        let vc = this.vertexColour();
+        console.log(vc.length);
+        gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(cv), gl.STATIC_DRAW);
+    
+        gl.bindBuffer(gl.ARRAY_BUFFER, colourBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vc), gl.STATIC_DRAW);
+    
+        var offset = 0;
+        var totalNumVertices = 101;
+    
+        gl.drawArrays(gl.TRIANGLE_FAN, offset, totalNumVertices);
+
+    }
+}
 // draw
 
-function makeCircle(x, y, radius, colour){
-    // vertexData = [...]
-    let circleVertex = [
-        x, y, 0.0 //circle center
-    ];
+var dish = new Circle(0,0,0.8,[0,0,0]);
+dish.make();
 
-    let vertexColour = [
-        colour[0],colour[1],colour[2]
-    ]; // each vertex colours
 
-    let numVertices = 99; // num of fans
-  
-    for(i = 0; i <= numVertices; i++){
-        circleVertex.push(Math.cos(i * 2 * Math.PI/numVertices) * radius + x);  //x
-        circleVertex.push(Math.sin(i * 2 * Math.PI/numVertices) * radius + y);  //y
-        circleVertex.push(0.0);                                                 //z
+class Bacteria {
 
-        vertexColour.push(colour[0]);
-        vertexColour.push(colour[1]);
-        vertexColour.push(colour[2]);   
-        
+    constructor(dish, colour){
+        this.dish = dish;
+        this.colour = colour;
     }
-    
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(circleVertex), gl.STATIC_DRAW);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, colourBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertexColour), gl.STATIC_DRAW);
-
-    var offset = 0;
-    var totalNumVertices = 101;
-
-    gl.drawArrays(gl.TRIANGLE_FAN, offset, totalNumVertices);
+    make(){
+        var index = Math.round((Math.random()*(300-3)+3)/3)*3;
+        var x = this.dish.circleVertex()[index];
+        var y = this.dish.circleVertex()[index+1];
+        var bacteria = new Circle(x, y, 0.1, this.colour);
+        bacteria.make();
+    }
 }
 
-makeCircle(0,0,0.9,[0,0,0]);    //main circle 
+var bacteria1 = new Bacteria(dish, [0,1,0]);
+bacteria1.make();
+
+
+
 
 
