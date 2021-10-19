@@ -1,6 +1,26 @@
 const canvas = document.getElementById('canvas');
 const gl = canvas.getContext('webgl');
 
+var bacteria = [];
+var totalBacteria = 10;
+var bacteriaColours = [
+    [0.64,0.56,0.83],
+    [0.77,0.86,0.64],
+    [0.55,0.02,0.24],
+    [0.96,0.94,0.72],
+    [0.97,0.34,0.22],
+    [0.06,0.64,0.69],
+    [0.88,0.55,0.47],
+    [0.23,0.27,0.36],
+    [0.94,0.55,0.29],
+    [0.65,0.27,0.34]
+
+];
+var start = true;
+var chance = 2;
+var points = 0;
+var poisoned = 0;
+
 if (!gl) {
     throw new Error('WebGL not supported');
 }
@@ -29,7 +49,7 @@ gl.shaderSource(fragmentShader, `
 precision lowp float;
 varying vec3 vColour;
 void main() {
-    gl_FragColor = vec4(vColour, 0.3);
+    gl_FragColor = vec4(vColour, 1);
 }
 `);
 gl.compileShader(fragmentShader);
@@ -55,6 +75,25 @@ gl.enableVertexAttribArray(colourLocation);
 gl.bindBuffer(gl.ARRAY_BUFFER, colourBuffer);
 gl.vertexAttribPointer(colourLocation, 3, gl.FLOAT, false, 0, 0);
 
+// Pythagorean theorem
+function distance(x1, y1, x2, y2) {
+    var xDist = x2-x1;
+    var yDist = y2-y1;
+    return Math.sqrt(Math.pow(xDist, 2) + Math.pow(yDist, 2));
+}
+
+// Uses radius and distance to determine if two objects are colliding
+function colliding(x1, y1, r1, x2, y2, r2) {
+    var xDist = x2-x1;
+    var yDist = y2-y1;
+    //var totDist = Math.sqrt(Math.pow(xDist, 2) + Math.pow(yDist, 2));
+
+    if(distance(x1, y1, x2, y2) - (r1+r2) < 0) {
+        return true;
+    }
+
+    return false;
+}
 
 class Circle {
 
@@ -100,7 +139,7 @@ class Circle {
         // vertexData = [...]
         let cv = this.circleVertex();
         let vc = this.vertexColour();
-        console.log(vc.length);
+        
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(cv), gl.STATIC_DRAW);
     
@@ -116,30 +155,152 @@ class Circle {
 }
 // draw
 
-var dish = new Circle(0,0,0.8,[0,0,0]);
-dish.make();
-
-
-class Bacteria {
+class Bacterium {
+    x;
+    y;
+    r;
 
     constructor(dish, colour){
         this.dish = dish;
         this.colour = colour;
     }
 
+    get x (){
+        return this.x;
+    }
+    get y (){
+        return this.y;
+    }
+    get r (){
+        return this.r;
+    }
+
     make(){
         var index = Math.round((Math.random()*(300-3)+3)/3)*3;
-        var x = this.dish.circleVertex()[index];
-        var y = this.dish.circleVertex()[index+1];
-        var bacteria = new Circle(x, y, 0.1, this.colour);
-        bacteria.make();
+        this.x = this.dish.circleVertex()[index];
+        this.y = this.dish.circleVertex()[index+1];
+        //this.r = 0.05;
+        this.r = (Math.random()*(0.08-0.03)+0.02);
+
+        // Variable to ensure no infinite loop is created
+        var attempt = 0;
+
+        // Loop through all Bacteria to ensure no collision on spawn
+        for (var i = 0; i < bacteria.length; i++) {
+            // Error check to not break the game if the bacteria cover the whole game surface.
+            if(attempt > 500) {
+                console.log("No area for new bacteria to spawn");
+                break;
+            }
+
+            // If theres a collision with a specific object, the variables need to be randomized again
+            // Also need to set i = -1 to ensure it loops through all bacteria again
+            if (colliding(this.x, this.y, 0.01, bacteria[i].x, bacteria[i].y, bacteria[i].r)) {
+                var index = Math.round((Math.random()*(300-3)+3)/3)*3;
+                this.x = this.dish.circleVertex()[index];
+                this.y = this.dish.circleVertex()[index+1];
+                attempt++;
+                i = -1;
+            }
+        }
+        
+        this.alive = true;
+        
+    }
+
+    update(){
+        if(this.alive) {
+            // If a certain threshold (r=0.3) destroy the bacteria and decrease player's lives
+            if(this.r > 0.2) {
+                chance--;
+                this.destroy(bacteria.indexOf(this));
+            } else {
+                // Increase the size of each bacteria by 0.0003 each tick
+                    this.r += 0.0003;
+                
+            }
+            // Draw
+            var bacterium = new Circle(this.x, this.y, this.r, this.colour);
+            bacterium.make();
+        }
+    }
+
+    destroy(i){
+    
+        this.r = 0;
+        this.x = 0;
+        this.y = 0;
+        this.alive = false;
+        
+        bacteria.splice(i,1);
+
     }
 }
 
-var bacteria1 = new Bacteria(dish, [0,1,0]);
-bacteria1.make();
+//create new petri dish
+var dish = new Circle(0,0,0.8,[0.95,0.95,0.95]);
+
+//create bacteria and load them into array
+for(var i = 0; i<totalBacteria; i++){
+    bacteria.push( new Bacterium(dish, bacteriaColours[i]) );
+    bacteria[i].make();
+}
+
+canvas.onmousedown = function(e){click(e);}
+
+function click(e) {
+    let x = e.clientX;
+    let y = e.clientY;
+
+    const rect = e.target.getBoundingClientRect();
+    //Convert default canvas coords to webgl vector coords
+    x = ((x - rect.left) - canvas.width/2)/(canvas.width/2);
+    y = (canvas.height/2 - (y - rect.top))/(canvas.height/2);
+
+    // Loop through all bacteria and check if you clicked within the radius of any
+
+    for(let i in bacteria) {
+        
+        if(colliding(x, y, 0, bacteria[i].x, bacteria[i].y, bacteria[i].r)){
+            
+            points += Math.round(bacteria[i].r *50);
+            poisoned++;
+            bacteria[i].destroy(i);
+            
+            // Break ensures you can't click multiple bacteria at once
+            break;
+         }
+    }
+}
 
 
+
+function gameLoop() {
+    this.dish.make();//draw petri dish
+
+    document.getElementById('score').innerHTML = points;
+    document.getElementById('chances').innerHTML = chance;
+    document.getElementById('poisoned').innerHTML = poisoned;
+
+    if(chance > 0) {
+        for (let i in bacteria) {
+                bacteria[i].update();
+                if (chance <= 0) {
+                    //bacRemaining = 0;
+                    document.getElementById('win-lose').innerHTML = "LOSER! BACTERIA GREW TOO BIG!";
+                    break;
+                }
+            }
+        if(bacteria.length===0){
+            document.getElementById('win-lose').innerHTML = "WINNER! YOU POISONED ALL THE BACTERIA BEFORE THEY GREW TOO BIG!";
+        }
+        
+      }
+   
+    requestAnimationFrame(gameLoop);
+}
+
+requestAnimationFrame(gameLoop);
 
 
 
