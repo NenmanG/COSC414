@@ -75,20 +75,13 @@ gl.enableVertexAttribArray(colourLocation);
 gl.bindBuffer(gl.ARRAY_BUFFER, colourBuffer);
 gl.vertexAttribPointer(colourLocation, 3, gl.FLOAT, false, 0, 0);
 
-// Pythagorean theorem
-function distance(x1, y1, x2, y2) {
+//calculate distance between two circles center. Combine this distance with the radius to determine if circles centers clash with one another
+function clash(x1, y1, r1, x2, y2, r2) {
     var xDist = x2-x1;
     var yDist = y2-y1;
-    return Math.sqrt(Math.pow(xDist, 2) + Math.pow(yDist, 2));
-}
+    var totalDistance = Math.sqrt(Math.pow(xDist, 2) + Math.pow(yDist, 2));// Pythagorean theorem
 
-// Uses radius and distance to determine if two objects are colliding
-function colliding(x1, y1, r1, x2, y2, r2) {
-    var xDist = x2-x1;
-    var yDist = y2-y1;
-    //var totDist = Math.sqrt(Math.pow(xDist, 2) + Math.pow(yDist, 2));
-
-    if(distance(x1, y1, x2, y2) - (r1+r2) < 0) {
+    if(totalDistance - (r1+r2) < 0) {
         return true;
     }
 
@@ -113,7 +106,7 @@ class Circle {
         for(let i = 0; i <= this.numVertices; i++){
             circleVertex.push(Math.cos(i * 2 * Math.PI/this.numVertices) * this.radius + this.x);  //x
             circleVertex.push(Math.sin(i * 2 * Math.PI/this.numVertices) * this.radius + this.y);  //y
-            circleVertex.push(0.0);                                                 //z
+            circleVertex.push(0.0);                                                                //z
             
         }
 
@@ -136,9 +129,9 @@ class Circle {
     }
 
     make(){
-        // vertexData = [...]
-        let cv = this.circleVertex();
-        let vc = this.vertexColour();
+        
+        let cv = this.circleVertex();   // vertexData = [...]
+        let vc = this.vertexColour();   // colorData = [...]
         
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(cv), gl.STATIC_DRAW);
@@ -149,19 +142,19 @@ class Circle {
         var offset = 0;
         var totalNumVertices = 101;
     
-        gl.drawArrays(gl.TRIANGLE_FAN, offset, totalNumVertices);
+        gl.drawArrays(gl.TRIANGLE_FAN, offset, totalNumVertices);// draw
 
     }
 }
-// draw
+
 
 class Bacterium {
     x;
     y;
-    r;
+    r; //radius
 
     constructor(dish, colour){
-        this.dish = dish;
+        this.dish = dish;   //dish to get points on circumference from
         this.colour = colour;
     }
 
@@ -175,49 +168,47 @@ class Bacterium {
         return this.r;
     }
 
-    make(){
-        var index = Math.round((Math.random()*(300-3)+3)/3)*3;
+    initialise(){
+        var index = Math.round((Math.random()*(300-3)+3)/3)*3; //get random point x on the circle circumference i.e. random point x in circle vertex [...]
         this.x = this.dish.circleVertex()[index];
         this.y = this.dish.circleVertex()[index+1];
-        //this.r = 0.05;
-        this.r = (Math.random()*(0.08-0.03)+0.02);
+        this.r = 0.05;  //starting radius of all bacteria
 
         // Variable to ensure no infinite loop is created
-        var attempt = 0;
+        var trial = 0;
 
-        // Loop through all Bacteria to ensure no collision on spawn
+        // Loop through all Bacteria to ensure no clash on initialisation
         for (var i = 0; i < bacteria.length; i++) {
             // Error check to not break the game if the bacteria cover the whole game surface.
-            if(attempt > 500) {
+            if(trial > 500) {
                 console.log("No area for new bacteria to spawn");
                 break;
             }
 
             // If theres a collision with a specific object, the variables need to be randomized again
-            // Also need to set i = -1 to ensure it loops through all bacteria again
-            if (colliding(this.x, this.y, 0.01, bacteria[i].x, bacteria[i].y, bacteria[i].r)) {
-                var index = Math.round((Math.random()*(300-3)+3)/3)*3;
+            if (clash(this.x, this.y, 0.05, bacteria[i].x, bacteria[i].y, bacteria[i].r)) {
+
+                var index = Math.round((Math.random()*(300-3)+3)/3)*3; //get random point x on the circle circumference  i.e. random point x in circle vertex [...]
                 this.x = this.dish.circleVertex()[index];
                 this.y = this.dish.circleVertex()[index+1];
-                attempt++;
+                trial++;
                 i = -1;
             }
         }
-        
+        this.r = 0.05;
         this.alive = true;
         
     }
 
     update(){
         if(this.alive) {
-            // If a certain threshold (r=0.3) destroy the bacteria and decrease player's lives
+            // at max radius of 0.2 poison the bacteria and player loses a chance
             if(this.r > 0.2) {
                 chance--;
-                this.destroy(bacteria.indexOf(this));
+                this.poison(bacteria.indexOf(this));
             } else {
-                // Increase the size of each bacteria by 0.0003 each tick
+                // Increase the size of each bacteria by 0.0003 each loop
                     this.r += 0.0003;
-                
             }
             // Draw
             var bacterium = new Circle(this.x, this.y, this.r, this.colour);
@@ -225,7 +216,7 @@ class Bacterium {
         }
     }
 
-    destroy(i){
+    poison(i){
     
         this.r = 0;
         this.x = 0;
@@ -243,12 +234,10 @@ var dish = new Circle(0,0,0.8,[0.95,0.95,0.95]);
 //create bacteria and load them into array
 for(var i = 0; i<totalBacteria; i++){
     bacteria.push( new Bacterium(dish, bacteriaColours[i]) );
-    bacteria[i].make();
+    bacteria[i].initialise();
 }
 
-canvas.onmousedown = function(e){click(e);}
-
-function click(e) {
+canvas.onmousedown = function click(e) {
     let x = e.clientX;
     let y = e.clientY;
 
@@ -261,11 +250,11 @@ function click(e) {
 
     for(let i in bacteria) {
         
-        if(colliding(x, y, 0, bacteria[i].x, bacteria[i].y, bacteria[i].r)){
+        if(clash(x, y, 0, bacteria[i].x, bacteria[i].y, bacteria[i].r)){
             
-            points += Math.round(bacteria[i].r *50);
+            points += Math.round(0.5/bacteria[i].r); //points attainable reduce as radius increases to emphasize effect of delay in clicking
             poisoned++;
-            bacteria[i].destroy(i);
+            bacteria[i].poison(i);
             
             // Break ensures you can't click multiple bacteria at once
             break;
@@ -275,8 +264,8 @@ function click(e) {
 
 
 
-function gameLoop() {
-    this.dish.make();//draw petri dish
+function loop() {
+    this.dish.make();//draw game petri dish
 
     document.getElementById('score').innerHTML = points;
     document.getElementById('chances').innerHTML = chance;
@@ -285,22 +274,22 @@ function gameLoop() {
     if(chance > 0) {
         for (let i in bacteria) {
                 bacteria[i].update();
-                if (chance <= 0) {
-                    //bacRemaining = 0;
+                if (chance <= 0) { //game lose condition
+                    
                     document.getElementById('win-lose').innerHTML = "LOSER! BACTERIA GREW TOO BIG!";
                     break;
                 }
             }
-        if(bacteria.length===0){
+        if(bacteria.length===0){ //game win condition
             document.getElementById('win-lose').innerHTML = "WINNER! YOU POISONED ALL THE BACTERIA BEFORE THEY GREW TOO BIG!";
         }
         
       }
    
-    requestAnimationFrame(gameLoop);
+    requestAnimationFrame(loop);
 }
 
-requestAnimationFrame(gameLoop);
+requestAnimationFrame(loop);
 
 
 
